@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an IAM role, an S3 bucket for Terraform state, and a DynamoDB table for locking.
+# backend-terraform-s3-dynamoDB-role
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: The name of the S3 bucket for Terraform state.
+    Default: bucket-tfstate-kelkun
+    ConstraintDescription: Must be a valid S3 bucket name.
+  
+  DynamoDBTableName:
+    Type: String
+    Description: The name of the DynamoDB table for Terraform state locking.
+    Default: terraform-lock-table
+    ConstraintDescription: Must be a valid DynamoDB table name.
+  
+  Region:
+    Type: String
+    Description: The AWS region where resources will be created.
+    Default: eu-west-3
+    AllowedValues:
+      - eu-central-1
+      - eu-west-1
+      - eu-west-2
+      - eu-west-3
+    ConstraintDescription: Must be a valid AWS region.
+## ROLE 
+  RoleName:
+    Type: String
+    Description: The name of the IAM role to be created.
+    Default: terraform-execution
+    ConstraintDescription: Must be a valid IAM role name.
+
+  BackendRoleName:
+    Type: String
+    Description: The name of the backend IAM role to be created.
+    Default: terraform-backend
+    ConstraintDescription: Must be a valid IAM role
+
+  TrustedAccountId:
+    Type: String
+    Description: The AWS Account ID that can assume this role.
+    ConstraintDescription: Must be a valid AWS account ID.
+  
+  TrustedRole:
+    Type: String
+    Description: >      
+        The name of the trusted IAM role that is allowed to assume this role for executing Terraform operations. 
+        Please provide the exact IAM role name.
+    Default: SysMaster
+    ConstraintDescription: Must be a valid IAM role name.
+## End ROLE
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration: 
+          - BucketKeyEnabled: True
+            ServerSideEncryptionByDefault: 
+              SSEAlgorithm: AES256 
+      VersioningConfiguration: 
+        Status: Enabled 
+
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      TableName: !Ref DynamoDBTableName
+      DeletionProtectionEnabled: True
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+
+  IAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${TrustedAccountId}:role/${TrustedRole}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: terraform-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+
+  TerraformBackendRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref BackendRoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${TrustedAccountId}:role/${TrustedRole}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: terraform-backend-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:ListBucket"
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                Resource:
+                  - !Join ["", ["arn:aws:s3:::", !Ref S3BucketName]]
+                  - !Join ["", ["arn:aws:s3:::", !Ref S3BucketName, "/*"]]
+              - Effect: Allow
+                Action:
+                  - "dynamodb:DescribeTable"
+                  - "dynamodb:GetItem"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:DeleteItem"
+                Resource:
+                  - !Join ["", ["arn:aws:dynamodb:*:*:table/", !Ref DynamoDBTableName]]
+
+Outputs:
+  S3BucketNameOutput:
+    Description: The name of the S3 bucket
+    Value: !Ref S3BucketName
+  
+  DynamoDBTableNameOutput:
+    Description: The name of the DynamoDB table
+    Value: !Ref DynamoDBTableName
+  
+  IAMRoleArn:
+    Description: The ARN of the IAM role terraform-execution
+    Value: !GetAtt IAMRole.Arn
+  
+  TerraformBackendRole:
+    Description: The ARN of the IAM role terraform backend
+    Value: !GetAtt TerraformBackendRole.Arn

@@ -1,0 +1,5 @@
+bucket = "bucket-tfstate-YOUR-BUCKET"
+key    = "tfstate-preprod/terraform.tfstate"
+region = "eu-west-3"
+dynamodb_table = "terraform-lock-table"
+role_arn = "arn:aws:iam::<ACCOUNT ROLE TERRFORM - preprod>:role/terraform-backend"

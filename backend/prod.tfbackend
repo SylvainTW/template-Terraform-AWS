@@ -1,0 +1,5 @@
+bucket = "bucket-tfstate-kelkun"
+key    = "tfstate-prod/terraform.tfstate"
+region = "eu-west-3"
+dynamodb_table = "terraform-lock-table"
+role_arn = "arn:aws:iam::<ACCOUNT ROLE TERRFORM - prod>:role/terraform-backend"

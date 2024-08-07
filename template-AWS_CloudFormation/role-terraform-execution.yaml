@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an IAM role for Terraform execution.
+
+Parameters:
+  RoleName:
+    Type: String
+    Description: The name of the IAM role to be created.
+    Default: terraform-execution
+    ConstraintDescription: Must be a valid IAM role name.
+
+  TrustedAccountId:
+    Type: String
+    Description: The AWS Account ID that can assume this role.
+    ConstraintDescription: Must be a valid AWS account ID.
+  
+  TrustedRole:
+    Type: String
+    Description: >      
+        The name of the trusted IAM role that is allowed to assume this role for executing Terraform operations. 
+        Please provide the exact IAM role name.
+    Default: SysMaster
+    ConstraintDescription: Must be a valid IAM role name.
+
+Resources:
+  IAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${TrustedAccountId}:role/${TrustedRole}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: terraform-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+Outputs:  
+  IAMRoleArn:
+    Description: The ARN of the IAM role
+    Value: !GetAtt IAMRole.Arn
